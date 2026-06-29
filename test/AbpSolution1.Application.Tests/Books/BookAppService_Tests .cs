@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using AbpSolution1.Authors;
 using Shouldly;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.Validation;
 using Xunit;
@@ -13,10 +15,12 @@ public abstract class BookAppService_Tests<TStartupModule> : AbpSolution1Applica
     where TStartupModule : IAbpModule
 {
     private readonly IBookAppService _bookAppService;
+    private readonly IRepository<Author, Guid> _authorRepository;
 
     protected BookAppService_Tests()
     {
         _bookAppService = GetRequiredService<IBookAppService>();
+        _authorRepository = GetRequiredService<IRepository<Author, Guid>>();
     }
 
     [Fact]
@@ -35,11 +39,14 @@ public abstract class BookAppService_Tests<TStartupModule> : AbpSolution1Applica
     [Fact]
     public async Task Should_Create_A_Valid_Book()
     {
+        var authorId = await GetExistingAuthorIdAsync();
+
         //Act
         var result = await _bookAppService.CreateAsync(
             new CreateUpdateBookDto
             {
                 Name = "New test book 42",
+                AuthorId = authorId,
                 Price = 10,
                 PublishDate = DateTime.Now,
                 Type = BookType.ScienceFiction
@@ -54,12 +61,15 @@ public abstract class BookAppService_Tests<TStartupModule> : AbpSolution1Applica
     [Fact]
     public async Task Should_Not_Create_A_Book_Without_Name()
     {
+        var authorId = await GetExistingAuthorIdAsync();
+
         var exception = await Assert.ThrowsAsync<AbpValidationException>(async () =>
         {
             await _bookAppService.CreateAsync(
                 new CreateUpdateBookDto
                 {
                     Name = "",
+                    AuthorId = authorId,
                     Price = 10,
                     PublishDate = DateTime.Now,
                     Type = BookType.ScienceFiction
@@ -69,5 +79,12 @@ public abstract class BookAppService_Tests<TStartupModule> : AbpSolution1Applica
 
         exception.ValidationErrors
             .ShouldContain(err => err.MemberNames.Any(mem => mem == "Name"));
+    }
+
+    private async Task<Guid> GetExistingAuthorIdAsync()
+    {
+        var author = await _authorRepository.FindAsync(author => author.Name == "George Orwell");
+        author.ShouldNotBeNull();
+        return author.Id;
     }
 }
